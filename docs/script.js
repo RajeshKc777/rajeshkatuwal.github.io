@@ -2,60 +2,93 @@ document.getElementById('year').textContent = new Date().getFullYear();
   var isMobileDevice = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || window.matchMedia('(max-width: 760px)').matches;
 
   function initProjectCardReveals () {
-    var projectCards = document.querySelectorAll('.project-card');
-    if (!projectCards.length) return;
+    var cards = document.querySelectorAll('.project-card');
+    if (!cards.length) return;
 
     var reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    var supportsObserver = 'IntersectionObserver' in window;
-    var tagDelayStart = 320;
-    var tagStagger = 60;
 
-    projectCards.forEach(function (card) {
-      var title = card.querySelector('.ptop h3');
-      var description = card.querySelector('p');
-      var arrow = card.querySelector('.arrow');
-      var tags = card.querySelectorAll('.tags .tag');
+    // Graceful fallback: no GSAP or reduced-motion — show cards immediately
+    if (reducedMotion || !window.gsap) {
+      Array.prototype.forEach.call(cards, function (card) {
+        card.style.opacity = '1';
+        card.classList.add('assembled');
+      });
+      return;
+    }
 
-      if (title) {
-        title.classList.add('reveal-step', 'reveal-title');
-        title.style.setProperty('--reveal-delay', '0ms');
-      }
+    var section = document.getElementById('work');
+    if (!section) return;
 
-      if (description) {
-        description.classList.add('reveal-step', 'reveal-description');
-        description.style.setProperty('--reveal-delay', '0ms');
-      }
+    // Desktop: 2-column grid — cards alternate left/right origins per column
+    // Mobile: single column — cards fall from above
+    // Origin map for 6 cards in a 2-col grid (indices 0-5):
+    //   col 0 (even): from left  |  col 1 (odd): from right
+    // Slight variation in distance and angle per row for organic feel
+    var desktopOrigins = [
+      { x: -110, rotation: -4  },  // card 0 — far left, tilt left
+      { x:  110, rotation:  4  },  // card 1 — far right, tilt right
+      { x: -90,  rotation: -3  },  // card 2 — mid left
+      { x:  90,  rotation:  3  },  // card 3 — mid right
+      { x: -100, rotation: -3.5},  // card 4
+      { x:  100, rotation:  3.5},  // card 5
+    ];
 
-      Array.prototype.forEach.call(tags, function (tag, index) {
-        tag.classList.add('reveal-step', 'reveal-tag');
-        tag.style.setProperty('--reveal-delay', (tagDelayStart + (index * tagStagger)) + 'ms');
+    var hasObserver = 'IntersectionObserver' in window;
+
+    function runAssemble () {
+      var mobile = window.matchMedia('(max-width: 760px)').matches;
+
+      Array.prototype.forEach.call(cards, function (card, i) {
+        var origin = desktopOrigins[i] || { x: (i % 2 === 0 ? -100 : 100), rotation: (i % 2 === 0 ? -3 : 3) };
+
+        // Set starting position via GSAP (no CSS transform conflict)
+        if (mobile) {
+          gsap.set(card, { opacity: 0, y: -60, rotation: 0, transformOrigin: 'center top' });
+        } else {
+          gsap.set(card, { opacity: 0, x: origin.x, y: -18, rotation: origin.rotation, transformOrigin: 'center center' });
+        }
       });
 
-      if (arrow) {
-        arrow.classList.add('reveal-step', 'reveal-icon');
-        arrow.style.setProperty('--reveal-delay', (tagDelayStart + (tags.length * tagStagger) + 100) + 'ms');
-      }
+      // Stagger: each card fires 110ms after the previous
+      // ease: 'power3.out' gives fast initial travel that decelerates naturally into place
+      // Mobile uses a gentle bounce settle via 'back.out(1.2)'
+      var mobile2 = window.matchMedia('(max-width: 760px)').matches;
 
-      if (!supportsObserver || reducedMotion) {
-        card.classList.add('is-visible');
-      }
-    });
+      gsap.to(Array.prototype.slice.call(cards), {
+        opacity: 1,
+        x: 0,
+        y: 0,
+        rotation: 0,
+        duration: mobile2 ? 0.72 : 0.82,
+        ease: mobile2 ? 'back.out(1.2)' : 'power3.out',
+        stagger: mobile2 ? 0.13 : 0.10,
+        onComplete: function () {
+          // Hand hover control back to CSS after all cards have landed
+          Array.prototype.forEach.call(cards, function (card) {
+            gsap.set(card, { clearProps: 'transform,x,y,rotation,transformOrigin,willChange' });
+            card.classList.add('assembled');
+          });
+        }
+      });
+    }
 
-    if (!supportsObserver || reducedMotion) return;
+    if (!hasObserver) {
+      runAssemble();
+      return;
+    }
 
-    var observer = new IntersectionObserver(function (entries, obs) {
+    // Observe the #work section — fire once when it enters the viewport
+    var sectionObserver = new IntersectionObserver(function (entries, obs) {
       entries.forEach(function (entry) {
-        if (!entry.isIntersecting || entry.intersectionRatio < 0.25) return;
-        entry.target.classList.add('is-visible');
-        obs.unobserve(entry.target);
+        if (!entry.isIntersecting) return;
+        obs.disconnect();
+        runAssemble();
       });
     }, {
-      threshold: 0.25
+      threshold: 0.08
     });
 
-    projectCards.forEach(function (card) {
-      observer.observe(card);
-    });
+    sectionObserver.observe(section);
   }
 
   initProjectCardReveals();
@@ -1164,7 +1197,6 @@ document.getElementById('year').textContent = new Date().getFullYear();
     reveal('.about-grid > div', { stagger: 0.15 });
     reveal('#experience .route-item');
     reveal('#skills .route-item', { stagger: 0.08 });
-    reveal('.project-card', { stagger: 0.1, y: 36 });
     reveal('.edu-card', { stagger: 0.12 });
     reveal('.yt-strip');
     reveal('.contact-inner > *', { stagger: 0.08, y: 16 });

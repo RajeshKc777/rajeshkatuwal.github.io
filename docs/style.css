@@ -232,6 +232,11 @@
   /* ---------- PROJECTS ---------- */
   .projects-grid{
     display:grid;grid-template-columns:repeat(2,1fr);gap:22px;
+    /* clip cards travelling in from off-screen without affecting layout */
+    overflow:hidden;
+    /* extend clip area so cards don't get cut during the arc */
+    padding:4px;
+    margin:-4px;
   }
   .project-card{
     background:var(--bg);
@@ -239,9 +244,13 @@
     border-radius:var(--radius);
     padding:26px;
     display:flex;flex-direction:column;gap:14px;
-    transition:border-color .2s ease, transform .2s ease;
+    /* transition covers hover only; GSAP owns the entrance transform */
+    transition:border-color .2s ease, box-shadow .2s ease;
   }
-  .project-card:hover{border-color:var(--pine);transform:translateY(-3px);}
+  .project-card:hover{
+    border-color:var(--pine);
+    box-shadow:0 8px 32px rgba(0,0,0,0.28);
+  }
   .project-card .ptop{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;}
   .project-card h3{font-size:18px;}
   .project-card .arrow{color:var(--ink-faint);font-size:18px;transition:color .2s, transform .2s;}
@@ -251,40 +260,18 @@
   .project-card a.card-link{position:absolute;inset:0;border-radius:var(--radius);}
   .project-card{position:relative;}
 
+  /* Pre-animation state — cards hold layout space, invisible until GSAP fires */
   html.js .project-card{
     opacity:0;
-    transform:translate3d(0,30px,0);
-    transition:opacity 640ms cubic-bezier(0.22, 1, 0.36, 1), transform 640ms cubic-bezier(0.22, 1, 0.36, 1), border-color .2s ease;
     will-change:opacity, transform;
   }
-  html.js .project-card.is-visible{
-    opacity:1;
-    transform:translate3d(0,0,0);
+  /* After assemble completes, re-enable CSS hover lift */
+  html.js .project-card.assembled{
+    will-change:auto;
+    transition:border-color .2s ease, box-shadow .2s ease, transform .2s ease;
   }
-  html.js .project-card.is-visible:hover{transform:translate3d(0,-3px,0);}
-  html.js .project-card .reveal-step{
-    opacity:0;
-    transform:translate3d(0,14px,0);
-    transition-property:opacity, transform, color, border-color, background-color;
-    transition-duration:420ms;
-    transition-timing-function:cubic-bezier(0.22, 1, 0.36, 1);
-    transition-delay:var(--reveal-delay, 0ms);
-    will-change:opacity, transform;
-  }
-  html.js .project-card.is-visible .reveal-step{
-    opacity:1;
-    transform:translate3d(0,0,0);
-  }
-  html.js .project-card .reveal-title{transition-delay:calc(var(--reveal-delay, 0ms) + 100ms);}
-  html.js .project-card .reveal-description{transition-delay:calc(var(--reveal-delay, 0ms) + 200ms);}
-  html.js .project-card .reveal-tag{transition-duration:380ms;}
-  html.js .project-card .reveal-icon{
-    transform:translate3d(0,10px,0) scale(0.84);
-    transform-origin:center;
-    transition-duration:450ms;
-  }
-  html.js .project-card.is-visible .reveal-icon{
-    transform:translate3d(0,0,0) scale(1);
+  html.js .project-card.assembled:hover{
+    transform:translateY(-3px);
   }
 
   .more-projects{
@@ -366,11 +353,9 @@
 
   @media (prefers-reduced-motion: reduce){
     .type-line .cursor{animation:none;}
-    html.js .project-card,
-    html.js .project-card .reveal-step{
+    html.js .project-card{
       opacity:1 !important;
       transform:none !important;
-      transition:none !important;
       will-change:auto;
     }
     *{transition:none !important;}
