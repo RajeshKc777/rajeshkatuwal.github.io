@@ -1,6 +1,65 @@
 document.getElementById('year').textContent = new Date().getFullYear();
   var isMobileDevice = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || window.matchMedia('(max-width: 760px)').matches;
 
+  function initProjectCardReveals () {
+    var projectCards = document.querySelectorAll('.project-card');
+    if (!projectCards.length) return;
+
+    var reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    var supportsObserver = 'IntersectionObserver' in window;
+    var tagDelayStart = 320;
+    var tagStagger = 60;
+
+    projectCards.forEach(function (card) {
+      var title = card.querySelector('.ptop h3');
+      var description = card.querySelector('p');
+      var arrow = card.querySelector('.arrow');
+      var tags = card.querySelectorAll('.tags .tag');
+
+      if (title) {
+        title.classList.add('reveal-step', 'reveal-title');
+        title.style.setProperty('--reveal-delay', '0ms');
+      }
+
+      if (description) {
+        description.classList.add('reveal-step', 'reveal-description');
+        description.style.setProperty('--reveal-delay', '0ms');
+      }
+
+      Array.prototype.forEach.call(tags, function (tag, index) {
+        tag.classList.add('reveal-step', 'reveal-tag');
+        tag.style.setProperty('--reveal-delay', (tagDelayStart + (index * tagStagger)) + 'ms');
+      });
+
+      if (arrow) {
+        arrow.classList.add('reveal-step', 'reveal-icon');
+        arrow.style.setProperty('--reveal-delay', (tagDelayStart + (tags.length * tagStagger) + 100) + 'ms');
+      }
+
+      if (!supportsObserver || reducedMotion) {
+        card.classList.add('is-visible');
+      }
+    });
+
+    if (!supportsObserver || reducedMotion) return;
+
+    var observer = new IntersectionObserver(function (entries, obs) {
+      entries.forEach(function (entry) {
+        if (!entry.isIntersecting || entry.intersectionRatio < 0.25) return;
+        entry.target.classList.add('is-visible');
+        obs.unobserve(entry.target);
+      });
+    }, {
+      threshold: 0.25
+    });
+
+    projectCards.forEach(function (card) {
+      observer.observe(card);
+    });
+  }
+
+  initProjectCardReveals();
+
   // ============================================================
   // WebGL fluid simulation background
   // ============================================================
@@ -77,18 +136,6 @@ document.getElementById('year').textContent = new Date().getFullYear();
       SUNRAYS_WEIGHT: 1.0
     };
 
-    if (isMobileDevice) {
-      config.SIM_RESOLUTION = 64;
-      config.DYE_RESOLUTION = 256;
-      config.PRESSURE_ITERATIONS = 10;
-      config.CURL = 18;
-      config.SPLAT_RADIUS = 0.18;
-      config.SPLAT_FORCE = 3200;
-      config.COLOR_UPDATE_SPEED = 6;
-      config.BLOOM = false;
-      config.SUNRAYS = false;
-    }
-
     function pointerPrototype () {
       this.id = -1;
       this.texcoordX = 0;
@@ -99,6 +146,7 @@ document.getElementById('year').textContent = new Date().getFullYear();
       this.deltaY = 0;
       this.down = false;
       this.moved = false;
+      this.isTouch = false;
       this.color = [30, 0, 300];
     }
 
@@ -736,8 +784,9 @@ document.getElementById('year').textContent = new Date().getFullYear();
     }
 
     function splatPointer (pointer) {
-      var dx = pointer.deltaX * config.SPLAT_FORCE;
-      var dy = pointer.deltaY * config.SPLAT_FORCE;
+      var touchBoost = pointer.isTouch ? 1.75 : 1.0;
+      var dx = pointer.deltaX * config.SPLAT_FORCE * touchBoost;
+      var dy = pointer.deltaY * config.SPLAT_FORCE * touchBoost;
       splat(pointer.texcoordX, pointer.texcoordY, dx, dy, pointer.color);
     }
 
@@ -839,6 +888,7 @@ document.getElementById('year').textContent = new Date().getFullYear();
       if (!touch) return;
       activeTouchId = touch.identifier;
       var pointer = pointers[0];
+      pointer.isTouch = true;
       var posX = scaleByPixelRatio(touch.clientX);
       var posY = scaleByPixelRatio(touch.clientY);
       updatePointerDownData(pointer, activeTouchId, posX, posY);
@@ -853,6 +903,8 @@ document.getElementById('year').textContent = new Date().getFullYear();
       var posX = scaleByPixelRatio(touch.clientX);
       var posY = scaleByPixelRatio(touch.clientY);
       updatePointerMoveData(pointer, posX, posY);
+      pointer.deltaX *= 1.75;
+      pointer.deltaY *= 1.75;
     }, { passive: true });
 
     window.addEventListener('touchend', function (e) {
@@ -860,12 +912,14 @@ document.getElementById('year').textContent = new Date().getFullYear();
       var touch = getTouchById(e.changedTouches, activeTouchId);
       if (!touch) return;
       updatePointerUpData(pointers[0]);
+      pointers[0].isTouch = false;
       activeTouchId = -1;
     }, { passive: true });
 
     window.addEventListener('touchcancel', function () {
       if (activeTouchId === -1) return;
       updatePointerUpData(pointers[0]);
+      pointers[0].isTouch = false;
       activeTouchId = -1;
     }, { passive: true });
 
